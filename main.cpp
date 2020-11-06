@@ -1,11 +1,14 @@
-#include "mainwindow.h"
+#include "mydialog.h"
 
 #include <QApplication>
+#include <QSpinBox>
+#include <QTextEdit>
+#include <QHBoxLayout>
 
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
-    MainWindow w;
-    w.show();
+    MyDialog dg;
+    dg.show();
     return a.exec();
 }
