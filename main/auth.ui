@@ -30,7 +30,7 @@
       <string/>
      </property>
      <property name="pixmap">
-      <pixmap>resources/logow.png</pixmap>
+      <pixmap>../logo.png</pixmap>
      </property>
     </widget>
    </item>
