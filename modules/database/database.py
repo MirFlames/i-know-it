@@ -3,24 +3,30 @@ from datetime import datetime, timedelta
 
 
 class Database:
-    """Documentation"""
-    # TODO: Допилить класс базы данных
+    """ Класс взаимодействия с базой данных """
     try:
         def __init__(self):
-            """Конструктор класса базы данных"""
+            """ Конструктор класса базы данных """
             self.connection = sqlite3.connect('modules/database/i-know-db.db')
             self.cursor = self.connection.cursor()
 
         def exit(self):
+            """ Закрывает соединение с базой данных """
             self.connection.close()
 
-        def get_deck_status(self, deck_id):
+        def get_deck_status(self, deck_id: int):
+            """
+            Возвращает статус колоды
+
+            :param deck_id: идентификатор колоды
+            :return: 0 - подписки открыты, 1 - подписки закрыты, -1 - колода доступная по подписке
+            """
             self.cursor.execute('SELECT status FROM decks WHERE rowid=:deck_id AND deleted=0', {"deck_id": deck_id})
             result = self.cursor.fetchall()
-            return result
+            return int(result[0])
 
-        def get_decks_by_user(self, user_id):
-            """Возвращает строку колод пользователя по идентификатору ВК"""
+        def show_decks_by_user(self, user_id: int):
+            """ Возвращает строку колод пользователя по идентификатору ВК """
             self.cursor.execute('SELECT name, status, rowid FROM decks WHERE owner=:id AND deleted=0', {"id": user_id})
             results = self.cursor.fetchall()
             decks = ''
@@ -40,35 +46,34 @@ class Database:
                     decks += str(result[0]) + ' | ID: ' + str(result[2]) + ' | ' + sub_str + '\n'
             return decks
 
-        def check_subscribe(self, deck_id, user_id):
+        def check_subscribe(self, deck_id: int, user_id: int):
             self.cursor.execute('SELECT * FROM decks WHERE root_deck=:deck_id AND owner=:owner AND deleted=0',
                                 {"deck_id": deck_id, "owner": user_id})
             result = self.cursor.fetchall()
-            print(result, len(result), len(result) != 0)
             return len(result) != 0
 
-        def unfollow_deck(self, deck_id):
+        def unfollow_deck(self, deck_id: int):
             self.cursor.execute('DELETE FROM decks WHERE rowid=:id', {"id": deck_id})
             self.connection.commit()
 
-        def change_deck_name(self, deck_id, name):
+        def change_deck_name(self, deck_id: int, name: str):
             self.cursor.execute('UPDATE decks SET name = :name WHERE rowid = :deck_id',
                                 {"name": name, "deck_id": deck_id})
             self.connection.commit()
 
-        def follow_deck(self, deck_id, user_id):
+        def follow_deck(self, deck_id: int, user_id: int):
             self.cursor.execute('INSERT INTO decks (name, status, owner, root_deck) VALUES '
                                 '((SELECT name FROM decks WHERE rowid==:deck_id), :status, :owner, :deck_id);',
                                 {"deck_id": deck_id, "status": -1, "owner": user_id})
             self.connection.commit()
 
-        def remove_deck(self, deck_id):
+        def remove_deck(self, deck_id: int):
             self.cursor.execute('UPDATE decks SET deleted = 1 WHERE rowid = :deck_id',
                                 {"deck_id": deck_id})
             self.connection.commit()
 
-        def get_cards_in_deck(self, deck_id):
-            """Получение карточек в колоде"""
+        def show_cards_in_deck(self, deck_id: int):
+            """ Получение карточек в колоде """
             self.cursor.execute('SELECT question, rowid FROM cards WHERE deck=:id AND deleted=0', {"id": deck_id})
             results = self.cursor.fetchall()
             cards = ''
@@ -105,13 +110,13 @@ class Database:
             return name, status, owner, deleted
 
         def delete_card_by_id(self, card_id):
-            """Удаление карточки по идентификатору"""
+            """ Удаление карточки по идентификатору """
             self.cursor.execute('UPDATE cards SET deleted = 1 WHERE rowid = :card_id',
                                 {"card_id": card_id})
             self.connection.commit()
 
         def insert_card(self, question, answer, deck):
-            """Добавление новой карточки"""
+            """ Добавление новой карточки """
             time = datetime.now().strftime("%Y-%m-%d %I:%M")
             self.cursor.execute(
                 'INSERT INTO cards (question, answer, deck, time) VALUES (:question, :answer, :deck, :time)',
@@ -119,7 +124,7 @@ class Database:
             self.connection.commit()
 
         def insert_deck(self, name, owner):
-            """Добавление новой карточки"""
+            """ Добавление новой карточки """
             self.cursor.execute(
                 'INSERT INTO decks (name, owner) VALUES (:name, :owner)',
                 {"name": name, "owner": owner})
@@ -131,19 +136,19 @@ class Database:
             self.connection.commit()
 
         def edit_card_question(self, card_id, question):
-            """Редактирование вопроса карточки по идентификатору карточки"""
+            """ Редактирование вопроса карточки по идентификатору карточки """
             self.cursor.execute('UPDATE cards SET question = :question WHERE rowid = :card_id',
                                 {"question": question, "card_id": card_id})
             self.connection.commit()
 
         def edit_card_answer(self, card_id, answer):
-            """Редактирование ответа карточки по идентификатору карточки"""
+            """ Редактирование ответа карточки по идентификатору карточки """
             self.cursor.execute('UPDATE cards SET answer = :answer WHERE rowid = :card_id',
                                 {"answer": answer, "card_id": card_id})
             self.connection.commit()
 
         def up_card_time(self, card_id, time_multiplier):
-            """Увеличение времени показа карточки"""
+            """ Увеличение времени показа карточки """
             time = datetime.now().strftime("%Y-%m-%d %I:%M")
             self.cursor.execute('UPDATE cards SET time = :time WHERE rowid = :card_id',
                                 {"card_id": card_id, "time": time})

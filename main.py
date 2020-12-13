@@ -8,7 +8,6 @@ from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 from vk_api.utils import get_random_id
 from vk_api.longpoll import VkLongPoll, VkEventType
 import pyreqs
-import pythoscope
 
 import modules.config as config
 import modules.database.database as database
@@ -17,12 +16,17 @@ vk_session = vk_api.VkApi(token=config.token)
 longpoll = VkLongPoll(vk_session)
 vk = vk_session.get_api()
 
-users = {}  # Словарь для работы с каждым пользователем отдельно
-last_user = -1  # Переменная, хранящая последнего пользователя для отправки ему сообщения
-developer_id = 369071929
+user_vars = {}  # Переменные пользователей
+last_user = -1  # Последний пользователь с кем взаимодействовал бот
+developer_id = 369071929  # Для отправления ошибок и т.п.
+
+db = database.Database()  # Инициализация базы данных
 
 
 class Mode(Enum):
+    """
+    Содержит список состояний пользователя
+    """
     menu = auto()
     repeat_cards = auto()
     manage_decks = auto()
@@ -45,6 +49,9 @@ class Mode(Enum):
 
 
 class User:
+    """
+    Класс пользователя
+    """
     def __init__(self, question='', answer='', mode=Mode.menu, deck_id=None, card_id=None):
         self.question = question
         self.answer = answer
@@ -54,6 +61,9 @@ class User:
 
 
 class Menu:
+    """
+    Класс меню позволяет формировать для пользователя клавиатуру вместе с сообщением
+    """
     def __init__(self, message=None, keyboard=None):
         self.keyboard = keyboard
         self.message = message
@@ -81,11 +91,11 @@ def show_main_menu(user_id):
     menu.keyboard.add_callback_button('1', VkKeyboardColor.PRIMARY)
     menu.keyboard.add_callback_button('2', VkKeyboardColor.POSITIVE)
     menu.show(user_id)
-    users[user_id].mode = Mode.menu
+    user_vars[user_id].mode = Mode.menu
 
 
 def repeat_cards(user_id):
-    users[user_id].question, users[user_id].answer, length, users[user_id].card_id = db.get_repeat_card(user_id)
+    user_vars[user_id].question, user_vars[user_id].answer, length, user_vars[user_id].card_id = db.get_repeat_card(user_id)
     if length == 0:
         show_message(user_id, "Карточки закончились :) Заходи позже")
         show_main_menu(user_id)
@@ -93,7 +103,7 @@ def repeat_cards(user_id):
         menu = Menu()
         menu.message = """
         ?????
-        """ + users[user_id].question + """
+        """ + user_vars[user_id].question + """
         
         Карточек осталось: """ + str(length)
 
@@ -105,7 +115,7 @@ def repeat_cards(user_id):
         menu.keyboard.add_line()
         menu.keyboard.add_callback_button('Назад')
         menu.show(user_id)
-        users[user_id].mode = Mode.repeat_cards
+        user_vars[user_id].mode = Mode.repeat_cards
 
 
 def manage_decks(user_id):
@@ -117,7 +127,7 @@ def manage_decks(user_id):
     4. Удалить колоду
     5. Создать колоду
     
-    """ + db.get_decks_by_user(user_id)
+    """ + db.show_decks_by_user(user_id)
     menu.keyboard = VkKeyboard(one_time=True)
     menu.keyboard.add_callback_button('1', VkKeyboardColor.POSITIVE)
     menu.keyboard.add_callback_button('2', VkKeyboardColor.PRIMARY)
@@ -128,7 +138,7 @@ def manage_decks(user_id):
     menu.keyboard.add_line()
     menu.keyboard.add_callback_button('Назад')
     menu.show(user_id)
-    users[user_id].mode = Mode.manage_decks
+    user_vars[user_id].mode = Mode.manage_decks
 
 
 def subscribe_deck(user_id):
@@ -137,7 +147,7 @@ def subscribe_deck(user_id):
     Подписка на колоду. Введите ID колоды
     """
     menu.show(user_id)
-    users[user_id].mode = Mode.wait_subscribe_deck_id
+    user_vars[user_id].mode = Mode.wait_subscribe_deck_id
 
 
 def share_deck(user_id):
@@ -146,7 +156,7 @@ def share_deck(user_id):
     Разрешить подписку на свою колоду. Введите ID колоды
     """
     menu.show(user_id)
-    users[user_id].mode = Mode.wait_share_deck_id
+    user_vars[user_id].mode = Mode.wait_share_deck_id
 
 
 def remove_deck(user_id):
@@ -155,7 +165,7 @@ def remove_deck(user_id):
     Введите ID колоды, которую Вы хотите удалить
     """
     menu.show(user_id)
-    users[user_id].mode = Mode.wait_remove_deck_id
+    user_vars[user_id].mode = Mode.wait_remove_deck_id
 
 
 def add_deck(user_id):
@@ -164,7 +174,7 @@ def add_deck(user_id):
          Введите название для добавляемой колоды
         """
     menu.show(user_id)
-    users[user_id].mode = Mode.wait_add_deck_id
+    user_vars[user_id].mode = Mode.wait_add_deck_id
 
 
 def edit_deck(user_id):
@@ -175,7 +185,7 @@ def edit_deck(user_id):
     3. Добавить карточку
     4. Изменить название колоды
     
-    """ + db.get_cards_in_deck(users[user_id].deck_id)
+    """ + db.show_cards_in_deck(user_vars[user_id].deck_id)
     menu.keyboard = VkKeyboard(one_time=True)
     menu.keyboard.add_callback_button('1', VkKeyboardColor.PRIMARY)
     menu.keyboard.add_callback_button('2', VkKeyboardColor.NEGATIVE)
@@ -185,7 +195,7 @@ def edit_deck(user_id):
     menu.keyboard.add_line()
     menu.keyboard.add_callback_button('Назад')
     menu.show(user_id)
-    users[user_id].mode = Mode.edit_deck
+    user_vars[user_id].mode = Mode.edit_deck
 
 
 def remove_card(user_id):
@@ -194,7 +204,7 @@ def remove_card(user_id):
     Введите ID карточки, которую хотите удалить
     """
     menu.show(user_id)
-    users[user_id].mode = Mode.wait_remove_card_id
+    user_vars[user_id].mode = Mode.wait_remove_card_id
 
 
 def add_card_answer(user_id):
@@ -203,7 +213,7 @@ def add_card_answer(user_id):
     Введите поле ответа для добавляемой карточки
     """
     menu.show(user_id)
-    users[user_id].mode = Mode.wait_add_card_answer
+    user_vars[user_id].mode = Mode.wait_add_card_answer
 
 
 def edit_card_enter_id(user_id):
@@ -212,7 +222,7 @@ def edit_card_enter_id(user_id):
     Введите ID карточки, которую хотите отредактировать
     """
     menu.show(user_id)
-    users[user_id].mode = Mode.wait_edit_card_id
+    user_vars[user_id].mode = Mode.wait_edit_card_id
 
 
 def edit_card_what(user_id):
@@ -227,7 +237,7 @@ def edit_card_what(user_id):
     menu.show(user_id)
     menu.keyboard.add_line()
     menu.keyboard.add_callback_button('Назад')
-    users[user_id].mode = Mode.wait_edit_card_what
+    user_vars[user_id].mode = Mode.wait_edit_card_what
 
 
 def edit_card_question(user_id):
@@ -236,9 +246,9 @@ def edit_card_question(user_id):
         Введите новое поле вопроса карточки.
         
         Прошлое:
-        """ + users[user_id].question
+        """ + user_vars[user_id].question
     menu.show(user_id)
-    users[user_id].mode = Mode.wait_edit_card_question
+    user_vars[user_id].mode = Mode.wait_edit_card_question
 
 
 def edit_card_answer(user_id):
@@ -247,9 +257,9 @@ def edit_card_answer(user_id):
             Введите новое поле ответа карточки.
 
             Прошлое:
-            """ + users[user_id].answer
+            """ + user_vars[user_id].answer
     menu.show(user_id)
-    users[user_id].mode = Mode.wait_edit_card_answer
+    user_vars[user_id].mode = Mode.wait_edit_card_answer
 
 
 def successful_added_card(user_id):
@@ -258,16 +268,16 @@ def successful_added_card(user_id):
                 Карточка добавлена!
                 
                 Вопрос:
-                """ + users[user_id].question + """
+                """ + user_vars[user_id].question + """
                 
                 Ответ:
-                """ + users[user_id].answer + """
+                """ + user_vars[user_id].answer + """
                 """
     menu.keyboard = VkKeyboard(one_time=True)
     menu.keyboard.add_callback_button('Добавить больше')
     menu.keyboard.add_callback_button('Вернуться к редактированию колоды')
     menu.show(user_id)
-    users[user_id].mode = Mode.successful_added_card
+    user_vars[user_id].mode = Mode.successful_added_card
 
 
 def successful_added_deck(user_id):
@@ -283,7 +293,7 @@ def successful_added_deck(user_id):
     menu.keyboard.add_callback_button('1', VkKeyboardColor.POSITIVE)
     menu.keyboard.add_callback_button('2', VkKeyboardColor.PRIMARY)
     menu.show(user_id)
-    users[user_id].mode = Mode.successful_added_deck
+    user_vars[user_id].mode = Mode.successful_added_deck
 
 
 def show_message(user_id, message):
@@ -294,88 +304,86 @@ def show_message(user_id, message):
     )
 
 
-db = database.Database()
-
 try:
     for event in longpoll.listen():
         if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
             if event.from_user:
                 last_user = event.user_id
-                if not (event.user_id in users):
-                    users[event.user_id] = User()
+                if not (event.user_id in user_vars):
+                    user_vars[event.user_id] = User()
 
-                if event.text in '/start' or (event.text in 'Начать' and users[event.user_id].mode == Mode.menu):
+                if event.text in '/start' or (event.text in 'Начать' and user_vars[event.user_id].mode == Mode.menu):
                     show_main_menu(event.user_id)
 
                 if event.text in 'Назад':
-                    if users[event.user_id].mode == Mode.manage_decks:
+                    if user_vars[event.user_id].mode == Mode.manage_decks:
                         show_main_menu(event.user_id)
-                    elif users[event.user_id].mode == Mode.edit_deck:
-                        users[event.user_id] = User()
+                    elif user_vars[event.user_id].mode == Mode.edit_deck:
+                        user_vars[event.user_id] = User()
                         manage_decks(event.user_id)
-                    elif users[event.user_id].mode == Mode.wait_edit_card_what:
+                    elif user_vars[event.user_id].mode == Mode.wait_edit_card_what:
                         edit_deck(event.user_id)
-                        users[event.user_id].card_id = None
-                    elif users[event.user_id].mode == Mode.repeat_cards:
+                        user_vars[event.user_id].card_id = None
+                    elif user_vars[event.user_id].mode == Mode.repeat_cards:
                         show_main_menu(event.user_id)
 
                 if event.text in 'Вернуться к редактированию колоды' and \
-                        users[event.user_id].mode == Mode.successful_added_card:
+                        user_vars[event.user_id].mode == Mode.successful_added_card:
                     edit_deck(event.user_id)
 
-                elif users[event.user_id].mode == Mode.repeat_cards:
+                elif user_vars[event.user_id].mode == Mode.repeat_cards:
                     if event.text == 'Легко':
-                        db.up_card_time(users[event.user_id].card_id, 'easy')
+                        db.up_card_time(user_vars[event.user_id].card_id, 'easy')
                     elif event.text == 'Средне':
-                        db.up_card_time(users[event.user_id].card_id, 'medium')
+                        db.up_card_time(user_vars[event.user_id].card_id, 'medium')
                     elif event.text == 'Трудно':
-                        db.up_card_time(users[event.user_id].card_id, 'hard')
+                        db.up_card_time(user_vars[event.user_id].card_id, 'hard')
                     elif event.text == 'Не вспомню':
-                        db.up_card_time(users[event.user_id].card_id, 'impossible')
+                        db.up_card_time(user_vars[event.user_id].card_id, 'impossible')
                     repeat_cards(event.user_id)
 
-                elif users[event.user_id].mode == Mode.wait_edit_card_id:
+                elif user_vars[event.user_id].mode == Mode.wait_edit_card_id:
                     selected_card = event.text
                     if selected_card.isdigit():
-                        users[event.user_id].question, users[event.user_id].answer, card_deck = \
+                        user_vars[event.user_id].question, user_vars[event.user_id].answer, card_deck = \
                             db.get_card_by_id(selected_card)
-                        if users[event.user_id].deck_id == card_deck:
-                            users[event.user_id].card_id = int(selected_card)
+                        if user_vars[event.user_id].deck_id == card_deck:
+                            user_vars[event.user_id].card_id = int(selected_card)
                             edit_card_what(event.user_id)
                         else:
                             show_message(event.user_id, "Указаная карточка не относится к этой колоде!")
                     else:
                         show_message(event.user_id, "Неверный формат ID карточки!")
 
-                elif users[event.user_id].mode == Mode.wait_edit_card_question:
-                    db.edit_card_question(users[event.user_id].card_id, event.text)
+                elif user_vars[event.user_id].mode == Mode.wait_edit_card_question:
+                    db.edit_card_question(user_vars[event.user_id].card_id, event.text)
                     edit_card_what(event.user_id)
 
-                elif users[event.user_id].mode == Mode.wait_edit_card_answer:
-                    db.edit_card_answer(users[event.user_id].card_id, event.text)
+                elif user_vars[event.user_id].mode == Mode.wait_edit_card_answer:
+                    db.edit_card_answer(user_vars[event.user_id].card_id, event.text)
                     edit_card_what(event.user_id)
 
-                elif users[event.user_id].mode == Mode.wait_add_card_question:
-                    users[event.user_id].question = event.text
+                elif user_vars[event.user_id].mode == Mode.wait_add_card_question:
+                    user_vars[event.user_id].question = event.text
                     show_message(event.user_id, "Введите ответ")
-                    users[event.user_id].mode = Mode.wait_add_card_answer
+                    user_vars[event.user_id].mode = Mode.wait_add_card_answer
 
-                elif users[event.user_id].mode == Mode.wait_add_card_answer:
-                    users[event.user_id].answer = event.text
-                    db.insert_card(users[event.user_id].question,
-                                   users[event.user_id].answer,
-                                   users[event.user_id].deck_id)
+                elif user_vars[event.user_id].mode == Mode.wait_add_card_answer:
+                    user_vars[event.user_id].answer = event.text
+                    db.insert_card(user_vars[event.user_id].question,
+                                   user_vars[event.user_id].answer,
+                                   user_vars[event.user_id].deck_id)
                     successful_added_card(event.user_id)
 
-                elif users[event.user_id].mode == Mode.wait_add_deck_id:
+                elif user_vars[event.user_id].mode == Mode.wait_add_deck_id:
                     db.insert_deck(event.text, event.user_id)
                     successful_added_deck(event.user_id)
 
-                elif users[event.user_id].mode == Mode.wait_remove_card_id:
+                elif user_vars[event.user_id].mode == Mode.wait_remove_card_id:
                     selected_card = event.text
                     if selected_card.isdigit():
                         card_question, _, card_deck = db.get_card_by_id(selected_card)
-                        if users[event.user_id].deck_id == card_deck:
+                        if user_vars[event.user_id].deck_id == card_deck:
                             db.delete_card_by_id(int(selected_card))
                             show_message(event.user_id, """Вы удалили карточку с вопросом:
                                 """ + card_question)
@@ -385,7 +393,7 @@ try:
                     else:
                         show_message(event.user_id, "Неверный формат ID карточки!")
 
-                elif users[event.user_id].mode == Mode.wait_remove_deck_id:
+                elif user_vars[event.user_id].mode == Mode.wait_remove_deck_id:
                     selected_deck = event.text
                     if selected_deck.isdigit():
                         name, status, owner, deleted = db.get_deck_by_id(int(selected_deck))
@@ -403,7 +411,7 @@ try:
                     else:
                         show_message(event.user_id, "Неверный формат ID колоды!")
 
-                elif users[event.user_id].mode == Mode.wait_share_deck_id:
+                elif user_vars[event.user_id].mode == Mode.wait_share_deck_id:
                     selected_deck = event.text
                     if selected_deck.isdigit():
                         name, status, owner, deleted = db.get_deck_by_id(int(selected_deck))
@@ -420,7 +428,7 @@ try:
                     else:
                         show_message(event.user_id, "Неверный формат ID колоды!")
 
-                elif users[event.user_id].mode == Mode.wait_subscribe_deck_id:
+                elif user_vars[event.user_id].mode == Mode.wait_subscribe_deck_id:
                     selected_deck = event.text
                     if selected_deck.isdigit():
                         name, status, owner, deleted = db.get_deck_by_id(int(selected_deck))
@@ -438,14 +446,14 @@ try:
                     else:
                         show_message(event.user_id, "Неверный формат ID колоды!")
 
-                elif users[event.user_id].mode == Mode.wait_edit_deck_id:
+                elif user_vars[event.user_id].mode == Mode.wait_edit_deck_id:
                     selected_deck = event.text
                     if selected_deck.isdigit():
                         name, status, owner, deleted = db.get_deck_by_id(int(selected_deck))
                         if name:
                             print(status, deleted)
                             if status != -1 and owner == event.user_id and not deleted:
-                                users[event.user_id].deck_id = int(selected_deck)
+                                user_vars[event.user_id].deck_id = int(selected_deck)
                                 edit_deck(event.user_id)
                             else:
                                 show_message(event.user_id, "Данная колода не принадлежит Вам!")
@@ -454,56 +462,56 @@ try:
                     else:
                         show_message(event.user_id, "Неверный формат ID колоды!")
 
-                elif users[event.user_id].mode == Mode.wait_edit_deck_name:
-                    db.change_deck_name(users[event.user_id].deck_id, event.text)
+                elif user_vars[event.user_id].mode == Mode.wait_edit_deck_name:
+                    db.change_deck_name(user_vars[event.user_id].deck_id, event.text)
                     edit_deck(event.user_id)
 
                 elif event.text == '1':
-                    if users[event.user_id].mode == Mode.menu:
+                    if user_vars[event.user_id].mode == Mode.menu:
                         manage_decks(event.user_id)
-                    elif users[event.user_id].mode == Mode.manage_decks:
+                    elif user_vars[event.user_id].mode == Mode.manage_decks:
                         subscribe_deck(event.user_id)
-                    elif users[event.user_id].mode == Mode.edit_deck:
+                    elif user_vars[event.user_id].mode == Mode.edit_deck:
                         edit_card_enter_id(event.user_id)
-                    elif users[event.user_id].mode == Mode.wait_edit_card_what:
+                    elif user_vars[event.user_id].mode == Mode.wait_edit_card_what:
                         edit_card_question(event.user_id)
-                    elif users[event.user_id].mode == Mode.successful_added_deck:
+                    elif user_vars[event.user_id].mode == Mode.successful_added_deck:
                         manage_decks(event.user_id)
 
                 elif event.text == '2':
-                    if users[event.user_id].mode == Mode.menu:
+                    if user_vars[event.user_id].mode == Mode.menu:
                         repeat_cards(event.user_id)
-                    elif users[event.user_id].mode == Mode.manage_decks:
-                        users[event.user_id].mode = Mode.wait_edit_deck_id
+                    elif user_vars[event.user_id].mode == Mode.manage_decks:
+                        user_vars[event.user_id].mode = Mode.wait_edit_deck_id
                         show_message(event.user_id, "Введите ID колоды")
-                    elif users[event.user_id].mode == Mode.edit_deck:
+                    elif user_vars[event.user_id].mode == Mode.edit_deck:
                         show_message(event.user_id, "Введите ID карточки которую хотите удалить")
-                        users[event.user_id].mode = Mode.wait_remove_card_id
-                    elif users[event.user_id].mode == Mode.wait_edit_card_what:
+                        user_vars[event.user_id].mode = Mode.wait_remove_card_id
+                    elif user_vars[event.user_id].mode == Mode.wait_edit_card_what:
                         edit_card_answer(event.user_id)
-                    elif users[event.user_id].mode == Mode.successful_added_deck:
+                    elif user_vars[event.user_id].mode == Mode.successful_added_deck:
                         show_main_menu(event.user_id)
 
                 elif event.text in '3':
-                    if users[event.user_id].mode == Mode.manage_decks:
+                    if user_vars[event.user_id].mode == Mode.manage_decks:
                         share_deck(event.user_id)
-                    elif users[event.user_id].mode == Mode.edit_deck:
+                    elif user_vars[event.user_id].mode == Mode.edit_deck:
                         show_message(event.user_id, "Введите вопрос")
-                        users[event.user_id].mode = Mode.wait_add_card_question
+                        user_vars[event.user_id].mode = Mode.wait_add_card_question
 
                 elif event.text in '4':
-                    if users[event.user_id].mode == Mode.manage_decks:
+                    if user_vars[event.user_id].mode == Mode.manage_decks:
                         remove_deck(event.user_id)
-                    if users[event.user_id].mode == Mode.edit_deck:
-                        users[event.user_id].mode = Mode.wait_edit_deck_name
+                    if user_vars[event.user_id].mode == Mode.edit_deck:
+                        user_vars[event.user_id].mode = Mode.wait_edit_deck_name
                         show_message(event.user_id, "Введите новое имя колоды")
 
-                elif event.text in 'Добавить больше' and users[event.user_id].mode == Mode.successful_added_card:
+                elif event.text in 'Добавить больше' and user_vars[event.user_id].mode == Mode.successful_added_card:
                     show_message(event.user_id, "Введите вопрос")
-                    users[event.user_id].mode = Mode.wait_add_card_question
+                    user_vars[event.user_id].mode = Mode.wait_add_card_question
 
                 elif event.text in '5':
-                    if users[event.user_id].mode == Mode.manage_decks:
+                    if user_vars[event.user_id].mode == Mode.manage_decks:
                         add_deck(event.user_id)
 
 finally:
