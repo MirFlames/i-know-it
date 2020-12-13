@@ -1,0 +1,32 @@
+@startuml
+actor "Пользователь" as user
+boundary "Редактирование колоды" as edit_deck
+
+control "Ввод ID колоды" as enter_deck_id
+control "Обращение к колоде" as check_deck
+control "Колоды не существует" as no_deck
+control "Это не ваша колода" as deck_no_edit
+control "ID введен некорректно" as no_id
+control "Удаление/отписка от колоды" as control_remove_deck
+control "Показ карточек выбранной колоды" as show_cards
+entity "Колоды" as decks
+entity "Карточки" as cards
+
+usecase "Редактирование карточек" as edit_cards
+usecase "Удаление карточек" as remove_cards
+usecase "Добавление карточек" as insert_cards
+
+user -- edit_deck
+edit_deck -- enter_deck_id
+enter_deck_id --> no_id
+check_deck --> no_deck
+check_deck --> deck_no_edit
+check_deck --> control_remove_deck
+control_remove_deck -- decks
+enter_deck_id --> check_deck
+check_deck --> show_cards
+show_cards -- cards
+show_cards --> edit_cards
+show_cards --> remove_cards
+show_cards --> insert_cards
+@enduml

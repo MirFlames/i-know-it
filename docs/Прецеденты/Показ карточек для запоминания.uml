@@ -1,0 +1,23 @@
+@startuml
+actor "Пользователь" as user
+boundary "Показ карточек для запоминания" as show_cards
+control "Проверка наличия карточек для показа" as check_cards
+control "Отсутствие карточек для показа" as no_cards
+control "Получение колод пользователя" as get_decks
+control "Отсутствие колод у пользователя" as no_decks
+control "Получение очередной карточки для показа" as check_cards_in_decks
+control "Показ очередной карточки пользователю" as show_card
+entity "Колоды" as decks
+entity "Карточки" as cards
+
+user -- show_cards
+show_cards -- check_cards
+check_cards --> get_decks
+get_decks -- decks
+get_decks --> no_decks
+no_decks --> no_cards
+get_decks --> check_cards_in_decks
+check_cards_in_decks --> no_cards
+check_cards_in_decks -- cards
+check_cards_in_decks --> show_card
+@enduml

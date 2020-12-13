@@ -1,0 +1,32 @@
+@startuml
+actor "Пользователь" as user
+boundary "Выбор колоды" as select_deck
+usecase "Подписаться на колоду" as subscribe_deck
+usecase "Сделать колоду публичной" as share_deck
+usecase "Редактировать колоду" as edit_deck
+usecase "Удалить колоду" as remove_deck
+control "Проверка существования выбранной колоды у пользователя" as check_deck
+
+boundary "Управление колодами" as manage_decks
+control "Проверка наличия по крайней мере одной колоды у пользователя" as est_decks
+control "У пользователя отсутствуют колоды" as no_one_deck
+
+user -- manage_decks
+manage_decks -- est_decks
+est_decks -- select_deck
+est_decks --> no_one_deck
+
+control "Показ действий для выбранной колоды" as control_select_deck
+select_deck -- check_deck
+control "У пользователя нет выбранной колоды" as no_decks
+check_deck --> no_decks
+check_deck --> control_select_deck
+control_select_deck -- subscribe_deck
+control_select_deck -- share_deck
+control_select_deck -- edit_deck
+control_select_deck -- remove_deck
+
+entity "Колоды" as decks
+decks -- check_deck
+decks -- est_decks
+@enduml

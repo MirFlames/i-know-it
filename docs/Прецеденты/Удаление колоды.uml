@@ -1,0 +1,24 @@
+@startuml
+actor "Пользователь" as user
+boundary "Удаление колоды" as remove_deck
+
+control "Ввод ID колоды" as enter_deck_id
+control "Обращение к колоде" as check_deck
+control "Колоды не существует" as no_deck
+control "Это не ваша колода" as deck_no_remove
+control "ID введен некорректно" as no_id
+control "Удаление/отписка от колоды" as control_remove_deck
+entity "Колоды" as decks
+entity "Карты" as cards
+
+user -- remove_deck
+remove_deck -- enter_deck_id
+enter_deck_id --> no_id
+check_deck --> no_deck
+check_deck --> deck_no_remove
+check_deck --> control_remove_deck
+control_remove_deck -- decks
+enter_deck_id --> check_deck
+check_deck -- decks
+control_remove_deck -- cards : "Если это владелец колоды, то удаляются все карты принадлежащие данной колоде"
+@enduml

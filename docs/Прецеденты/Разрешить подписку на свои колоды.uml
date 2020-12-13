@@ -1,0 +1,22 @@
+@startuml
+actor "Пользователь" as user
+boundary "Разрешить подписку на свои колоды" as share_deck
+
+control "Ввод ID колоды" as enter_deck_id
+control "Обращение к колоде" as check_deck
+control "Колоды не существует" as no_deck
+control "Это не ваша колода" as deck_no_share
+control "ID введен некорректно" as no_id
+control "Разрешение колоды для подписки" as control_share_deck
+entity "Колоды" as decks
+
+user -- share_deck
+share_deck -- enter_deck_id
+enter_deck_id --> no_id
+check_deck --> no_deck
+check_deck --> deck_no_share
+check_deck --> control_share_deck
+control_share_deck -- decks
+enter_deck_id --> check_deck
+check_deck -- decks
+@enduml
