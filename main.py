@@ -7,7 +7,6 @@ from enum import Enum, auto
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 from vk_api.utils import get_random_id
 from vk_api.longpoll import VkLongPoll, VkEventType
-import pyreqs
 
 import modules.config as config
 import modules.database.database as database
